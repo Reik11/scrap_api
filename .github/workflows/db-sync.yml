@@ -1,0 +1,50 @@
+name: Scraper Sync Runner
+
+on:
+  schedule:
+    - cron: '0 */2 * * *' # Jalankan setiap 2 jam sekali (untuk pengecekan dinamis)
+  repository_dispatch:
+    types: [trigger-scraper]
+  workflow_dispatch:
+    inputs:
+      category:
+        description: 'Kategori data yang di-sync (auto/drugs/epidemiology/recall/klb_bpom/all)'
+        required: true
+        default: 'auto'
+      triggeredBy:
+        description: 'Nama pemicu'
+        required: true
+        default: 'MANUAL_WORKFLOW'
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          CATEGORY="auto"
+          TRIGGERED_BY="SYSTEM"
+          
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            CATEGORY="${{ github.event.client_payload.category }}"
+            TRIGGERED_BY="${{ github.event.client_payload.triggeredBy }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CATEGORY="${{ github.event.inputs.category }}"
+            TRIGGERED_BY="${{ github.event.inputs.triggeredBy }}"
+          fi
+          
+          node scraper.js --category=$CATEGORY --triggered-by="$TRIGGERED_BY"
